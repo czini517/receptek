@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Receptek">
+<meta name="theme-color" content="#fbf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1915" media="(prefers-color-scheme: dark)">
+<title>Receptek</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍲</text></svg>">
+<script>
+/* =====================================================================
+   BEÁLLÍTÁS — ide kell beírni az Azure app regisztráció
+   "Application (client) ID" értékét.
+   ===================================================================== */
+const CLIENT_ID = "IDE_JON_A_CLIENT_ID";
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<style>
+:root{
+  --bg:#fbf7f2; --card:#ffffff; --ink:#2a2420; --muted:#7a6f66; --line:#ece4da;
+  --accent:#c2562b; --accent-soft:#f6e3d9; --done:#b5aca3;
+  --radius:14px; --shadow:0 1px 2px rgba(60,40,20,.06),0 4px 14px rgba(60,40,20,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1c1915; --card:#26221d; --ink:#f1ebe4; --muted:#a69a8e; --line:#3a332c;
+         --accent:#e98a5f; --accent-soft:#3d2a20; --done:#6e655c;
+         --shadow:0 1px 2px rgba(0,0,0,.3); }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;padding-bottom:env(safe-area-inset-bottom)}
+button{font:inherit;color:inherit}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+header.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+  padding-top:env(safe-area-inset-top)}
+.bar{display:flex;align-items:center;gap:8px;height:56px}
+.bar h1{font-size:20px;margin:0;flex:1;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{border:0;background:transparent;width:40px;height:40px;border-radius:10px;display:grid;place-items:center;cursor:pointer;color:var(--muted)}
+.icon-btn:hover,.icon-btn:active{background:var(--accent-soft);color:var(--accent)}
+.icon-btn svg{width:22px;height:22px}
+.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.search{padding:0 0 12px}
+.search input{width:100%;font:inherit;padding:11px 14px 11px 40px;border-radius:12px;border:1px solid var(--line);
+  background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%23999' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") 13px center no-repeat;color:var(--ink);outline:none}
+.search input:focus{border-color:var(--accent)}
+.status{font-size:13px;color:var(--muted);padding:10px 0 0;min-height:20px}
+.cat{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:22px 4px 8px}
+.list{display:flex;flex-direction:column;gap:8px;padding-bottom:24px}
+.item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;text-decoration:none;color:inherit;box-shadow:var(--shadow)}
+.item:active{transform:scale(.995)}
+.item .t{flex:1;min-width:0;font-weight:600}
+.item .s{font-size:13px;color:var(--muted);font-weight:400;display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .chev{color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:48px 16px}
+/* detail */
+.detail h2{font-size:28px;line-height:1.2;margin:20px 0 6px;letter-spacing:-.02em}
+.meta{color:var(--muted);font-size:13px;margin-bottom:12px}
+.intro{color:var(--muted)}
+.tabs{display:none;gap:6px;background:var(--card);border:1px solid var(--line);padding:4px;border-radius:12px;margin:16px 0}
+.tabs button{flex:1;border:0;background:transparent;padding:8px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
+.tabs button.on{background:var(--accent);color:#fff}
+.cols{display:grid;grid-template-columns:minmax(220px,1fr) 1.6fr;gap:28px;margin-top:16px}
+section.box h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:0 0 10px}
+.ing{list-style:none;margin:0;padding:0}
+.ing li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+.ing li .ck{flex:none;width:20px;height:20px;border:2px solid var(--line);border-radius:6px;margin-top:2px;display:grid;place-items:center}
+.ing li.done{color:var(--done);text-decoration:line-through}
+.ing li.done .ck{background:var(--accent);border-color:var(--accent)}
+.ing li.done .ck::after{content:"";width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.ing li.sub{cursor:default;border:0;font-weight:700;padding:14px 0 2px;color:var(--ink);text-decoration:none}
+.steps{counter-reset:none}
+.steps p,.steps li{margin:0 0 12px}
+.steps ol,.steps ul{padding-left:22px}
+.steps img,.intro img{max-width:100%;height:auto;border-radius:10px}
+.steps h1,.steps h2,.steps h3,.steps h4{font-size:17px;margin:18px 0 8px}
+.whole img{max-width:100%;height:auto;border-radius:10px}
+.wake{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);border:1px solid var(--line);
+  background:var(--card);border-radius:999px;padding:5px 12px;cursor:pointer}
+.wake.on{color:var(--accent);border-color:var(--accent)}
+@media (max-width:640px){
+  .tabs{display:flex}
+  .cols{display:block}
+  .cols section.box{display:none}
+  .cols section.box.show{display:block}
+  .detail h2{font-size:24px}
+}
+/* center screens */
+.center{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:24px}
+.center .big{font-size:56px}
+.btn{border:0;background:var(--accent);color:#fff;font-weight:600;padding:12px 22px;border-radius:12px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.muted{color:var(--muted)}
+code{background:var(--accent-soft);padding:1px 6px;border-radius:6px;font-size:.92em}
+/* menu */
+.menu{position:absolute;right:16px;top:52px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);
+  padding:6px;min-width:210px;display:none;z-index:10}
+.menu.open{display:block}
+.menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 12px;border-radius:8px;cursor:pointer}
+.menu button:hover{background:var(--accent-soft)}
+.menu .who{font-size:12px;color:var(--muted);padding:6px 12px 8px;border-bottom:1px solid var(--line);margin-bottom:4px;word-break:break-all}
+/* folder picker */
+.crumbs{font-size:14px;color:var(--muted);margin:16px 0 8px}
+.crumbs a{color:var(--accent);text-decoration:none;cursor:pointer}
+.pick-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="bar">
+      <button class="icon-btn" id="backBtn" hidden aria-label="Vissza">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h1 id="title">Receptek</h1>
+      <button class="icon-btn" id="refreshBtn" hidden aria-label="Frissítés">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button class="icon-btn" id="menuBtn" hidden aria-label="Menü">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
+      </button>
+    </div>
+    <div class="search" id="searchWrap" hidden>
+      <input id="q" type="search" placeholder="Keresés névre vagy hozzávalóra…" autocomplete="off">
+    </div>
+  </div>
+  <div class="menu" id="menu">
+    <div class="who" id="who"></div>
+    <button id="mFolder">Másik mappa választása</button>
+    <button id="mResync">Teljes újratöltés</button>
+    <button id="mLogout">Kijelentkezés</button>
+  </div>
+</header>
+<main class="wrap" id="app"></main>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const app = $("#app");
+const TEST = window.RECEPT_TEST || null;           // csak teszteléshez
+const SCOPES = ["Files.Read", "User.Read"];
+const GRAPH = "https://graph.microsoft.com/v1.0";
+
+/* ---------------- kis segédek ---------------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const ls = {
+  get(k){ try { return JSON.parse(localStorage.getItem("rcp:"+k)); } catch { return null; } },
+  set(k,v){ try { localStorage.setItem("rcp:"+k, JSON.stringify(v)); } catch {} },
+  del(k){ try { localStorage.removeItem("rcp:"+k); } catch {} }
+};
+/* IndexedDB a receptek tárolására (gyors indulás, offline is) */
+const idb = (() => {
+  let dbp;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open("receptek", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => {
+    const t = db.transaction("kv", mode); const st = t.objectStore("kv"); const r = fn(st);
+    t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error); }); };
+  return {
+    get: k => tx("readonly", st => st.get(k)).catch(() => null),
+    set: (k, v) => tx("readwrite", st => st.put(v, k)).catch(() => null),
+    clear: () => tx("readwrite", st => st.clear()).catch(() => null)
+  };
+})();
+
+/* ---------------- bejelentkezés (MSAL) ---------------- */
+let pca = null, account = null;
+async function initAuth(){
+  if (TEST) { account = { username: "teszt@example.com" }; return; }
+  pca = new msal.PublicClientApplication({
+    auth: { clientId: CLIENT_ID, authority: "https://login.microsoftonline.com/consumers",
+            redirectUri: location.origin + location.pathname },
+    cache: { cacheLocation: "localStorage" }
+  });
+  await pca.initialize();
+  const r = await pca.handleRedirectPromise();
+  account = (r && r.account) || pca.getAllAccounts()[0] || null;
+}
+async function token(){
+  try { return (await pca.acquireTokenSilent({ scopes: SCOPES, account })).accessToken; }
+  catch (e) { await pca.acquireTokenRedirect({ scopes: SCOPES, account }); throw new Error("redirect"); }
+}
+async function graph(path){
+  if (TEST) return TEST.graph(path);
+  const url = path.startsWith("http") ? path : GRAPH + path;
+  const r = await fetch(url, { headers: { Authorization: "Bearer " + await token() } });
+  if (!r.ok) throw new Error("Graph hiba " + r.status);
+  return r.json();
+}
+async function graphAll(path){
+  let out = [], next = path;
+  while (next) { const j = await graph(next); out = out.concat(j.value || []); next = j["@odata.nextLink"]; }
+  return out;
+}
+async function download(item){
+  if (TEST) return TEST.download(item);
+  const u = item["@microsoft.graph.downloadUrl"];
+  const r = u ? await fetch(u) : await fetch(GRAPH + "/me/drive/items/" + item.id + "/content",
+                { headers: { Authorization: "Bearer " + await token() } });
+  if (!r.ok) throw new Error("Letöltési hiba " + r.status);
+  return r.arrayBuffer();
+}
+
+/* ---------------- docx → recept ---------------- */
+const RX_ING = /^(hozz[aá]val[oó]k?|alapanyag(ok)?|kell hozz[aá]|sz[uü]ks[eé]ges(ek)?|ingredients?)\b/i;
+const RX_STEP = /^(elk[eé]sz[ií]t[eé]s[e]?|elk[eé]sz[ií]t[eé]si m[oó]d|k[eé]sz[ií]t[eé]s[e]?|[ií]gy k[eé]sz[uü]l|m[oó]dszer|le[ií]r[aá]s|recept|menete|method|directions|instructions)\b/i;
+const headText = el => (el.textContent || "").trim().replace(/[:：]\s*$/, "");
+const isHeaderLike = el => { const t = (el.textContent||"").trim(); return t.length > 0 && t.length <= 60; };
+
+async function parseDocx(buf, name){
+  const { value: html } = await mammoth.convertToHtml({ arrayBuffer: buf });
+  const doc = new DOMParser().parseFromString("<div>" + html + "</div>", "text/html");
+  const nodes = [...doc.body.firstChild.children].filter(n => (n.textContent||"").trim() || n.querySelector("img"));
+  // a dokumentum elején álló cím ne duplázódjon a recept neve alatt
+  if (nodes[0] && /^H[1-3]$/.test(nodes[0].tagName) && norm(nodes[0].textContent).trim() === norm(name).trim()) nodes.shift();
+  let iIng = nodes.findIndex(n => isHeaderLike(n) && RX_ING.test(headText(n)));
+  let iStep = nodes.findIndex((n, i) => i > iIng && isHeaderLike(n) && RX_STEP.test(headText(n)));
+  const outer = arr => arr.map(n => n.outerHTML).join("");
+
+  if (iIng < 0) {
+    // nincs "Hozzávalók" fejléc: az első felsorolás legyen a hozzávalólista, ha van
+    const iList = nodes.findIndex(n => n.tagName === "UL" || n.tagName === "OL");
+    if (iList >= 0 && iStep > iList) return build(nodes.slice(0, iList), [nodes[iList]], nodes.slice(iStep + 1));
+    return { intro: "", ing: [], steps: outer(nodes), whole: true };
+  }
+  if (iStep < 0) {
+    // nincs "Elkészítés" fejléc: a hozzávalók addig tartanak, amíg listaelemek / rövid sorok jönnek
+    iStep = iIng + 1;
+    while (iStep < nodes.length) {
+      const n = nodes[iStep]; const t = (n.textContent||"").trim();
+      if (n.tagName === "UL" || n.tagName === "OL" || t.length < 70) iStep++; else break;
+    }
+    return build(nodes.slice(0, iIng), nodes.slice(iIng + 1, iStep), nodes.slice(iStep));
+  }
+  return build(nodes.slice(0, iIng), nodes.slice(iIng + 1, iStep), nodes.slice(iStep + 1));
+
+  function build(introN, ingN, stepN){
+    const ing = [];
+    for (const n of ingN) {
+      if (n.tagName === "UL" || n.tagName === "OL") {
+        n.querySelectorAll(":scope > li").forEach(li => { const t = li.textContent.trim(); if (t) ing.push({ t }); });
+      } else if (/^H\d$/.test(n.tagName)) {
+        ing.push({ t: headText(n), sub: true });
+      } else {
+        const lines = n.innerHTML.split(/<br\s*\/?>/i).map(h => { const d = document.createElement("div"); d.innerHTML = h; return d.textContent.trim(); }).filter(Boolean);
+        for (const t of lines) {
+          if (/[:：]$/.test(t) && t.length < 50) ing.push({ t: t.replace(/[:：]$/, ""), sub: true });
+          else ing.push({ t: t.replace(/^[-–•*·]\s*/, "") });
+        }
+      }
+    }
+    return { intro: outer(introN), ing, steps: outer(stepN), whole: false };
+  }
+}
+
+/* ---------------- állapot ---------------- */
+let folder = ls.get("folder");            // {id, name, path}
+let recipes = [];                         // [{id,name,cat,etag,mod,intro,ing,steps,whole,search}]
+let syncing = false, syncMsg = "";
+
+async function loadCache(){
+  const c = folder && await idb.get("recipes:" + folder.id);
+  recipes = Array.isArray(c) ? c : [];
+}
+async function saveCache(){ if (folder) await idb.set("recipes:" + folder.id, recipes); }
+
+async function listDocx(id, cat, depth){
+  const items = await graphAll("/me/drive/items/" + id + "/children?$top=999&select=id,name,file,folder,eTag,lastModifiedDateTime,@microsoft.graph.downloadUrl");
+  let out = [];
+  for (const it of items) {
+    if (it.folder && depth < 3) out = out.concat(await listDocx(it.id, cat ? cat + " / " + it.name : it.name, depth + 1));
+    else if (it.file && /\.docx$/i.test(it.name) && !it.name.startsWith("~$")) out.push({ ...it, cat });
+  }
+  return out;
+}
+
+async function sync(force){
+  if (syncing || !folder) return;
+  syncing = true; setSpin(true); setStatus("Mappa ellenőrzése…");
+  try {
+    const files = await listDocx(folder.id, "", 0);
+    const old = new Map(force ? [] : recipes.map(r => [r.id, r]));
+    const todo = files.filter(f => { const o = old.get(f.id); return !o || o.etag !== f.eTag; });
+    let done = 0;
+    const parsed = new Map();
+    const worker = async () => {
+      while (todo.length) {
+        const f = todo.shift();
+        try { parsed.set(f.id, await parseDocx(await download(f), f.name.replace(/\.docx$/i, ""))); }
+        catch (e) { parsed.set(f.id, { intro: "", ing: [], steps: "<p class='muted'>Nem sikerült beolvasni ezt a fájlt.</p>", whole: true, err: true }); }
+        done++; setStatus(`Új vagy módosult receptek beolvasása: ${done} / ${total}`);
+      }
+    };
+    const total = todo.length;
+    if (total) setStatus(`Új vagy módosult receptek beolvasása: 0 / ${total}`);
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    recipes = files.map(f => {
+      const p = parsed.get(f.id); const o = old.get(f.id);
+      const base = p || o;
+      const name = f.name.replace(/\.docx$/i, "");
+      return { ...base, id: f.id, name, cat: f.cat, etag: f.eTag, mod: f.lastModifiedDateTime,
+               search: norm(name + " " + (base.ing || []).map(i => i.t).join(" ")) };
+    }).sort((a, b) => a.name.localeCompare(b.name, "hu"));
+    await saveCache();
+    ls.set("lastSync", Date.now());
+    setStatus(total ? `${total} recept frissítve.` : "");
+    render();
+  } catch (e) {
+    if (e.message !== "redirect") setStatus("Nem sikerült frissíteni (offline vagy?) — a mentett receptek látszanak.");
+  } finally { syncing = false; setSpin(false); }
+}
+
+/* ---------------- UI ---------------- */
+function setSpin(on){ $("#refreshBtn").classList.toggle("spin", on); }
+function setStatus(t){ syncMsg = t; const el = $("#status"); if (el) el.textContent = t; }
+function chrome({ title = "Receptek", back = false, search = false, tools = true } = {}){
+  $("#title").textContent = title;
+  $("#backBtn").hidden = !back;
+  $("#searchWrap").hidden = !search;
+  $("#refreshBtn").hidden = !tools; $("#menuBtn").hidden = !tools;
+  $("#menu").classList.remove("open");
+}
+
+function render(){
+  const h = location.hash;
+  if (CLIENT_ID.startsWith("IDE_") && !TEST) return viewSetup();
+  if (!account) return viewLogin();
+  if (h.startsWith("#/mappa") || !folder) return viewPicker();
+  if (h.startsWith("#/r/")) return viewRecipe(decodeURIComponent(h.slice(4)));
+  return viewList();
+}
+
+function viewSetup(){
+  chrome({ tools: false });
+  app.innerHTML = `<div class="center"><div class="big">🔧</div><h2>Még egy lépés</h2>
+    <p class="muted">Írd be az <code>index.html</code> elején a <code>CLIENT_ID</code> értékét (Azure app regisztrációból).</p></div>`;
+}
+function viewLogin(){
+  chrome({ tools: false });
+  app.innerHTML = `<div class="center"><div class="big">🍲</div><h2>Receptek</h2>
+    <p class="muted">Jelentkezz be a Microsoft-fiókoddal, hogy lássam a OneDrive-on lévő receptjeidet.</p>
+    <button class="btn" id="login">Bejelentkezés</button></div>`;
+  $("#login").onclick = () => pca.loginRedirect({ scopes: SCOPES, prompt: "select_account" });
+}
+
+async function viewPicker(){
+  chrome({ title: "Receptmappa választása", back: !!folder, tools: false });
+  const stack = (location.hash.match(/^#\/mappa\/(.+)$/) || [])[1];
+  const cur = stack ? JSON.parse(decodeURIComponent(stack)) : [{ id: "root", name: "OneDrive" }];
+  const top = cur[cur.length - 1];
+  app.innerHTML = `<div class="crumbs">${cur.map((c, i) => i < cur.length - 1
+      ? `<a data-i="${i}">${esc(c.name)}</a> › ` : `<b>${esc(c.name)}</b>`).join("")}</div>
+    <div class="pick-actions">${top.id !== "root" ? `<button class="btn" id="choose">Ez a receptmappa</button>` : ""}</div>
+    <div class="list" id="flist"><div class="empty">Betöltés…</div></div>`;
+  app.querySelectorAll(".crumbs a").forEach(a => a.onclick = () => go(cur.slice(0, +a.dataset.i + 1)));
+  const ch = $("#choose");
+  if (ch) ch.onclick = async () => {
+    folder = { id: top.id, name: top.name }; ls.set("folder", folder);
+    await loadCache(); location.hash = ""; render(); sync();
+  };
+  function go(st){ location.hash = "#/mappa/" + encodeURIComponent(JSON.stringify(st)); }
+  try {
+    const path = top.id === "root" ? "/me/drive/root/children" : "/me/drive/items/" + top.id + "/children";
+    const items = await graphAll(path + "?$top=999&select=id,name,folder,file");
+    const folders = items.filter(i => i.folder).sort((a, b) => a.name.localeCompare(b.name, "hu"));
+    const docs = items.filter(i => i.file && /\.docx$/i.test(i.name)).length;
+    $("#flist").innerHTML = (folders.length ? folders.map(f => `<a class="item" data-id="${esc(f.id)}" data-n="${esc(f.name)}" href="javascript:void 0">
+        <span class="t">📁 ${esc(f.name)}<span class="s">${f.folder.childCount} elem</span></span><span class="chev">›</span></a>`).join("")
+      : `<div class="empty">Nincs több almappa.</div>`)
+      + (docs ? `<p class="muted" style="text-align:center">Ebben a mappában ${docs} .docx fájl van.</p>` : "");
+    $("#flist").querySelectorAll(".item").forEach(a => a.onclick = () => go([...cur, { id: a.dataset.id, name: a.dataset.n }]));
+  } catch (e) { if (e.message !== "redirect") $("#flist").innerHTML = `<div class="empty">Nem sikerült betölteni a mappát.</div>`; }
+}
+
+function viewList(){
+  chrome({ title: folder.name || "Receptek", search: true });
+  const q = norm($("#q").value.trim());
+  const list = q ? recipes.filter(r => q.split(/\s+/).every(w => r.search.includes(w))) : recipes;
+  const groups = new Map();
+  for (const r of list) { const k = r.cat || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+  const keys = [...groups.keys()].sort((a, b) => a === "" ? -1 : b === "" ? 1 : a.localeCompare(b, "hu"));
+  const showCats = keys.length > 1 || (keys[0] && keys[0] !== "");
+  let html = `<div class="status" id="status">${esc(syncMsg)}</div>`;
+  if (!recipes.length) html += `<div class="empty">${syncing ? "Receptek betöltése…" : "Ebben a mappában nincs .docx recept."}</div>`;
+  else if (!list.length) html += `<div class="empty">Nincs találat.</div>`;
+  for (const k of keys) {
+    if (showCats) html += `<div class="cat">${esc(k || "Egyéb")}</div>`;
+    html += `<div class="list">` + groups.get(k).map(r => {
+      const sub = r.ing && r.ing.length ? r.ing.filter(i => !i.sub).slice(0, 4).map(i => i.t).join(" · ") : "";
+      return `<a class="item" href="#/r/${encodeURIComponent(r.id)}"><span class="t">${esc(r.name)}${sub ? `<span class="s">${esc(sub)}</span>` : ""}</span><span class="chev">›</span></a>`;
+    }).join("") + `</div>`;
+  }
+  app.innerHTML = html;
+  const y = ls.get("scroll"); if (y != null) { window.scrollTo(0, y); ls.del("scroll"); }
+}
+
+let wakeLock = null;
+const checked = new Map();   // receptId -> Set(index)
+function viewRecipe(id){
+  const r = recipes.find(x => x.id === id);
+  if (!r) { location.hash = ""; return; }
+  chrome({ title: "", back: true });
+  window.scrollTo(0, 0);
+  const set = checked.get(id) || new Set(); checked.set(id, set);
+  const ingHtml = r.ing.length ? `<ul class="ing">${r.ing.map((i, k) => i.sub
+      ? `<li class="sub">${esc(i.t)}</li>`
+      : `<li data-k="${k}" class="${set.has(k) ? "done" : ""}"><span class="ck"></span><span>${esc(i.t)}</span></li>`).join("")}</ul>` : "";
+  const when = r.mod ? new Date(r.mod).toLocaleDateString("hu-HU") : "";
+  app.innerHTML = `<article class="detail">
+    <h2>${esc(r.name)}</h2>
+    <div class="meta">${r.cat ? esc(r.cat) + " · " : ""}módosítva: ${when}
+      ${"wakeLock" in navigator ? ` · <button class="wake" id="wake">☀︎ Képernyő ébren</button>` : ""}</div>
+    ${r.intro ? `<div class="intro">${r.intro}</div>` : ""}
+    ${r.whole ? `<div class="steps whole">${r.steps}</div>` : `
+    <div class="tabs"><button data-t="ing" class="on">Hozzávalók</button><button data-t="steps">Elkészítés</button></div>
+    <div class="cols">
+      <section class="box show" data-b="ing"><h3>Hozzávalók</h3>${ingHtml || "<p class='muted'>—</p>"}</section>
+      <section class="box" data-b="steps"><h3>Elkészítés</h3><div class="steps">${r.steps || "<p class='muted'>—</p>"}</div></section>
+    </div>`}
+  </article>`;
+  app.querySelectorAll(".ing li[data-k]").forEach(li => li.onclick = () => {
+    const k = +li.dataset.k; set.has(k) ? set.delete(k) : set.add(k); li.classList.toggle("done");
+  });
+  app.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+    app.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+    app.querySelectorAll(".box").forEach(x => x.classList.toggle("show", x.dataset.b === b.dataset.t));
+  });
+  const w = $("#wake");
+  if (w) {
+    w.classList.toggle("on", !!wakeLock);
+    w.onclick = async () => {
+      try {
+        if (wakeLock) { await wakeLock.release(); wakeLock = null; }
+        else { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; w.classList.remove("on"); }); }
+        w.classList.toggle("on", !!wakeLock);
+      } catch {}
+    };
+  }
+}
+
+/* ---------------- események ---------------- */
+$("#backBtn").onclick = () => { if (history.length > 1) history.back(); else location.hash = ""; };
+$("#refreshBtn").onclick = () => sync(false);
+$("#menuBtn").onclick = e => { e.stopPropagation(); $("#who").textContent = account ? account.username : ""; $("#menu").classList.toggle("open"); };
+document.addEventListener("click", e => { if (!e.target.closest("#menu")) $("#menu").classList.remove("open"); });
+$("#mFolder").onclick = () => { location.hash = "#/mappa"; };
+$("#mResync").onclick = () => { $("#menu").classList.remove("open"); sync(true); };
+$("#mLogout").onclick = async () => { ls.del("folder"); await idb.clear(); if (pca) pca.logoutRedirect({ account }); };
+$("#q").addEventListener("input", () => viewList());
+app.addEventListener("click", e => { if (e.target.closest('a.item[href^="#/r/"]')) ls.set("scroll", window.scrollY); });
+window.addEventListener("hashchange", render);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && account && folder && Date.now() - (ls.get("lastSync") || 0) > 60000) sync(false);
+});
+
+/* ---------------- indulás ---------------- */
+(async () => {
+  try { await initAuth(); }
+  catch (e) { app.innerHTML = `<div class="center"><p>Bejelentkezési hiba: ${esc(e.message)}</p></div>`; return; }
+  await loadCache();
+  render();
+  if (account && folder) sync(false);
+})();
+})();
+</script>
+</body>
+</html>
